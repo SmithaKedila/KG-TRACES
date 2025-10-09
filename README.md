@@ -83,6 +83,7 @@ Make sure you have:
 ```bash
 git clone https://github.com/Edaizi/KG-TRACES.git
 cd KG-TRACES
+conda create -n kg_traces python=3.12
 pip install -r requirements.txt
 ```
 
