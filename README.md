@@ -145,6 +145,12 @@ model = AutoModelForCausalLM.from_pretrained(model_hub_name)
   <img src="assets/main_result.png" width="750" alt="KG-TRACES Method Overview">
 </p>
 
+# 📞 Contact
+
+For any questions or feedback, please:
+
+- Open an issue in the GitHub repository
+- Reach out to us at wurong1159@zju.edu.cn
 
 # 📜 Citation
 If KG-TRACES helps your research or project, we'd love a shout-out! Please cite:
