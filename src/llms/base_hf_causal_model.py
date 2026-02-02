@@ -54,48 +54,49 @@ class HfCausalModel(BaseLanguageModel):
         return len(self.tokenizer.tokenize(text))
 
     def prepare_for_inference(self):
+        import torch
+
+        # 1) Tokenizer
         self.tokenizer = AutoTokenizer.from_pretrained(self.args.model_path)
 
-        self.tokenizer.pad_token = self.tokenizer.eos_token
-        self.tokenizer.padding_side = "left"
+        # 2) Decide CPU vs GPU
+        use_cuda = torch.cuda.is_available()
 
-        if self.args.quant != "none":
-            quantization_config = BitsAndBytesConfig(
-                load_in_8bit=self.args.quant == "8bit",  
-                load_in_4bit=self.args.quant == "4bit",
-                bnb_4bit_quant_type="nf4",          
-                bnb_4bit_use_double_quant=True      
-            )
+        if use_cuda:
+            torch_dtype = torch.float16      # works well on your P100
+            device_map = "auto"
+            attn_impl = "sdpa"              # IMPORTANT: no flash_attention_2
+        else:
+            torch_dtype = torch.float32
+            device_map = "cpu"
+            attn_impl = "eager"
 
+        # 3) Load model (from local path models/KG-TRACES)
         self.model = AutoModelForCausalLM.from_pretrained(
             self.args.model_path,
-            device_map="auto",
-            torch_dtype=self.DTYPE.get(self.args.dtype, None),
-            quantization_config=quantization_config if self.args.quant != "none" else None,
-            attn_implementation=self.args.attn_implementation,
+            torch_dtype=torch_dtype,
+            device_map=device_map,
+            attn_implementation=attn_impl,
         )
 
+        # 4) Create a GenerationConfig and store it as self.generation_cfg
+        gen_cfg = GenerationConfig.from_model_config(self.model.config)
 
-        self.generation_cfg = GenerationConfig.from_pretrained(self.args.model_path)
-            
-        self.generation_cfg.max_new_tokens = self.args.max_output_tokens
-        self.generation_cfg.temperature = self.args.temperature
-        self.generation_cfg.top_k = self.args.top_k
-        self.generation_cfg.top_p = self.args.top_p
-        self.generation_cfg.repetition_penalty = self.args.repetition_penalty
+        # Override a few fields from args if they exist
+        args = self.args
+        gen_cfg.max_new_tokens = getattr(args, "max_output_tokens", 256)
+        gen_cfg.temperature = getattr(args, "temperature", 0.7)
+        gen_cfg.top_p = getattr(args, "top_p", 0.85)
+        gen_cfg.top_k = getattr(args, "top_k", 20)
+        gen_cfg.repetition_penalty = getattr(args, "repetition_penalty", 1.05)
 
+        # Greedy vs sampling
+        if getattr(args, "generation_mode", "greedy") == "greedy":
+            gen_cfg.do_sample = False
+        else:
+            gen_cfg.do_sample = True
 
-
-        if self.args.generation_mode == "greedy":
-            self.generation_cfg.do_sample = False
-            self.generation_cfg.num_return_sequences = 1
-        elif self.args.generation_mode == "sampling":
-            self.generation_cfg.do_sample = True
-            self.generation_cfg.num_return_sequences = self.args.k
-        elif self.args.generation_mode == "beam":
-            self.generation_cfg.do_sample = False
-            self.generation_cfg.num_beams = self.args.k
-            self.generation_cfg.num_return_sequences = self.args.k
+        self.generation_cfg = gen_cfg
 
     def prepare_model_prompt(self, query):
         if self.args.chat_model:

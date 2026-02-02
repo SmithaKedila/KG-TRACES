@@ -2,6 +2,7 @@ import sys
 import os
 import torch
 from datasets import load_dataset
+from datasets import Features, Value
 import json
 import argparse
 from tqdm import tqdm
@@ -117,13 +118,61 @@ def prediction(batch_data, processed_list, input_builder, model):
 
     return results
 
+def load_webqsp_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/webqsp_offline/*.jsonl), no internet needed.
+    """
+    if split not in ["train", "validation", "test"]:
+        raise ValueError(f"Unsupported split: {split}")
+
+    base_dir = os.path.join("data", "processed/webqsp")
+    file_map = {
+        "train":      "train-relation_path.jsonl",
+        "validation": "validation.jsonl",
+        "test":       "test.jsonl",
+    }
+    path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
+    ds = load_dataset("json", data_files=path, split="train")
+    return ds
+
+def load_cwq_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/processed/cwq/*.jsonl), no internet needed.
+    """
+    if split not in ["train", "validation", "test"]:
+        raise ValueError(f"Unsupported split: {split}")
+
+    base_dir = os.path.join("data", "processed/cwq")
+    file_map = {
+        "train":      "train-relation_path.jsonl",
+        "validation": "validation.jsonl",
+        "test":       "test.jsonl",
+    }
+    path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
+    ds = load_dataset("json", data_files=path, split="train")
+    return ds
+
 
 def main(args, LLM):
     input_file = os.path.join(args.data_path, args.dataset)
     path_postfix = "no_path"
 
     # Load dataset
-    dataset = load_dataset(input_file, split=args.split)
+    #dataset = load_dataset(input_file, split=args.split)
+    if args.dataset == "webqsp":
+        dataset = load_webqsp_split(args.split)
+    elif args.dataset == "cwq":
+        dataset = load_cwq_split(args.split)
+    else:
+        input_file = os.path.join(args.data_path, args.dataset)
+        dataset = load_dataset(input_file, split=args.split)
+
     if args.add_path:
         if args.use_true:
             path_postfix = "ground_path"
@@ -221,12 +270,10 @@ if __name__ == "__main__":
         default="KG-TRACES",
     )
     argparser.add_argument(
-        "--model_path",
-        type=str,
-        help="model_name for save results",
-        default="model/KG-TRACES",
+        "--model_path", type=str,
+        help="HF repo id or local path for the model",
+        default="models/KG-TRACES",
     )
-
     argparser.add_argument("--pred_relation_path_path", type=str, default="results/gen_predict_path/webqsp/test/KG-TRACES/type_relation/predictions_3_True.jsonl")
     argparser.add_argument("--pred_triple_path_path", type=str, default="results/gen_predict_path/webqsp/test/KG-TRACES/type_triple/predictions_3_True.jsonl")
     argparser.add_argument("--add_path", action="store_true")
@@ -259,7 +306,6 @@ if __name__ == "__main__":
         LLM = None
     args = argparser.parse_args()
     args.generation_mode = "greedy"
-
 
     logger.info(args)
 

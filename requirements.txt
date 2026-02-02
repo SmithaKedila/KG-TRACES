@@ -34,7 +34,6 @@ fastapi==0.115.11
 fastjsonschema==2.21.1
 fastparquet==2024.11.0
 filelock==3.17.0
-flash_attn==2.7.4.post1
 frozenlist==1.5.0
 fsspec==2024.12.0
 gekko==1.2.1

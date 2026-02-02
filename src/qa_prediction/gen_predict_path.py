@@ -151,6 +151,45 @@ def generate_seq(
     return [{"paths": predictions[i], "scores": scores[i], "norm_scores": norm_scores[i]}
             for i in range(batch_size)]
 
+def load_webqsp_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/webqsp_offline/*.jsonl), no internet needed.
+    """
+    if split not in ["train", "validation", "test"]:
+        raise ValueError(f"Unsupported split: {split}")
+
+    base_dir = os.path.join("data", "processed/webqsp")
+    file_map = {
+        "train":      "train-triple_path.jsonl",
+        "validation": "validation.jsonl",
+        "test":       "test.jsonl",
+    }
+    path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
+    ds = load_dataset("json", data_files=path, split="train")
+    return ds
+
+def load_cwq_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/webqsp_offline/*.jsonl), no internet needed.
+    """
+    if split not in ["train", "validation", "test"]:
+        raise ValueError(f"Unsupported split: {split}")
+
+    base_dir = os.path.join("data", "processed/cwq")
+    file_map = {
+        "train":      "train-triple_path.jsonl",
+        "validation": "validation.jsonl",
+        "test":       "test.jsonl",
+    }
+    path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
+    ds = load_dataset("json", data_files=path, split="train")
+    return ds
 
 def gen_prediction(args):
     tokenizer = AutoTokenizer.from_pretrained(args.model_path)
@@ -167,7 +206,11 @@ def gen_prediction(args):
     logger.info(f"Save results to: {output_dir}")
 
     # Load dataset
-    dataset = load_dataset(input_file, split=args.split)
+    #dataset = load_dataset(input_file, split=args.split)
+    if args.dataset == "webqsp":
+        dataset = load_webqsp_split(args.split)
+    else:
+        dataset = load_cwq_split(args.split)
 
     # Load prompt template
     prompter = utils.InstructFormater(args.prompt_path)

@@ -1,6 +1,7 @@
+export PYTHONPATH=$PWD:$PYTHONPATH
 SPLIT="test"
-DATASET_LIST="webqsp cwq"  # "webqsp cwq""
-PATH_TYPE_LIST="relation triple" 
+DATASET_LIST="webqsp"  # "webqsp cwq""
+PATH_TYPE_LIST="triple" 
 MODEL_NAME=KG-TRACES
 MODEL_PATH=models/KG-TRACES
 PROMPT_PATH=prompts/qwen2.5.txt
