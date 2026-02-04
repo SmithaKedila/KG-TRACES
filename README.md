@@ -89,7 +89,7 @@ pip install -r requirements.txt
 
 
 #### 📚 Datasets: The Fuel for KG-TRACES
-We've meticulously prepared augmented SFT datasets for WebQSP and CWQ, packed with reasoning paths and augmented reasoning process with source attributions. Find them on Hugging Face:
+We've meticulously prepared augmented SFT datasets for WebQSP and CWQ, packed with reasoning paths and augmented reasoning process with source attributions. Store this in KG-TRACES/data/processed/<webqsp \or cwq> Find them on Hugging Face:
 
 - [KG-TRACES-WebQSP](https://huggingface.co/datasets/Edaizi/KG-TRACES-WebQSP)
 - [KG-TRACES-CWQ](https://huggingface.co/datasets/Edaizi/KG-TRACES-CWQ)
