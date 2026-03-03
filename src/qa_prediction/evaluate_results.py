@@ -51,8 +51,8 @@ def eval_f1(prediction, answer):
     for a in answer:
         if match(prediction_str, a):
             matched += 1
-    precision = matched / len(prediction)
-    recall = matched / len(answer)
+    precision=matched/len(prediction)
+    recall=matched/len(answer)
     if precision + recall == 0:
         return 0, precision, recall
     else:
@@ -70,7 +70,22 @@ def extract_topk_prediction(prediction, k=-1):
     results = sorted(results.items(), key=lambda x: x[1], reverse=True)
     return [r[0] for r in results[:k]]
 
+def evaluation_hit_k(predictions:list[str],answers:list[str],k:int):
+  if k<=0:
+     return 0
+  topk_predictions=extract_topk_prediction(predictions,k)
+  for a in answers:
+    for p in topk_predictions:
+       if match(p,a):
+          return 1
+  return 0
 
+def eval_mrr(predictions:list[str],answers:list[str])->float:
+    for i,p in enumerate(predictions):
+       for a in answers:
+         if match(p,a):
+           return 1.0/(i+1)
+    return 0.0 
 
 def extract_answer(raw_prediction: str, skip_false_parse: bool=False) -> list[str]:
     if "**answer**" in raw_prediction.lower():
@@ -82,59 +97,75 @@ def extract_answer(raw_prediction: str, skip_false_parse: bool=False) -> list[st
             predictions = raw_prediction.split("\n")
     return predictions
 
-
-def eval_result(predict_file, cal_f1=True, topk = -1, is_tuned=False, skip_false_parse=False):
+def eval_result(predict_file, cal_f1=True, topk=-1, is_tuned=False, skip_false_parse=False): #right now for checking the dual functionality
     if not predict_file.endswith('predictions.jsonl'):
         predict_file = os.path.join(predict_file, 'predictions.jsonl')
-    
-    eval_name = "detailed_eval_result_top_{topk}.jsonl" if topk > 0 else 'detailed_eval_result.jsonl'
+    eval_name = f"detailed_eval_result_top_{topk}.jsonl" if topk > 0 else 'detailed_eval_result.jsonl'
     detailed_eval_file = predict_file.replace('predictions.jsonl', eval_name)
-    # Load results
-    acc_list = []
-    hit_list = []
-    f1_list = []
-    precision_list = []
-    recall_list = []
+    acc_list, hit_list, f1_list, precision_list, recall_list,mrr_list = [], [], [], [], [],[]
+
     with open(predict_file, 'r') as f, open(detailed_eval_file, 'w') as f2:
         for line in f:
             try:
                 data = json.loads(line)
-            except:
-                logger.info(line)
+            except Exception as e:
+                logger.info(f"Skipping line due to error: {e}")
                 continue
+            
             id = data['id']
-            raw_prediction = data['prediction'] if len(data['prediction'])>1 else data['prediction'][0]
+            raw_prediction = data['prediction']
+            if isinstance(raw_prediction, list) and len(raw_prediction) == 1:
+                raw_prediction = raw_prediction[0]
+            
             answer = list(set(data['ground_truth']))
-            if cal_f1:
-                if not isinstance(raw_prediction, list):
-                    prediction = extract_answer(raw_prediction, skip_false_parse) if is_tuned else raw_prediction.split("\n")
-                else:
-                    prediction = extract_topk_prediction(prediction, topk)
-                if not prediction:
-                    continue
-                f1_score, precision_score, recall_score = eval_f1(prediction, answer)
-                f1_list.append(f1_score)
-                precision_list.append(precision_score)
-                recall_list.append(recall_score)
-                prediction_str = ' '.join(prediction)
-                acc = eval_acc(prediction_str, answer)
-                hit = eval_hit(prediction_str, answer)
-                acc_list.append(acc)
-                hit_list.append(hit)
-                f2.write(json.dumps({'id': id, 'prediction': prediction, 'ground_truth': answer, 'acc': acc, 'hit': hit, 'f1': f1_score, 'precision': precision_score, 'recall': recall_score}) + '\n')
+            if isinstance(raw_prediction, list):
+                full_prediction = raw_prediction
             else:
-                acc = eval_acc(prediction, answer)
-                hit = eval_hit(prediction, answer)
-                acc_list.append(acc)
-                hit_list.append(hit)
-                f2.write(json.dumps({'id': id, 'prediction': prediction, 'ground_truth': answer, 'acc': acc, 'hit': hit}) + '\n')
-    
+                full_prediction = extract_answer(raw_prediction, skip_false_parse) if is_tuned else raw_prediction.split("\n")
+
+            if not full_prediction:
+                continue
+            if topk > 0:
+                hit = evaluation_hit_k(full_prediction, answer, k=topk)
+            else:
+                prediction_str = ' '.join(full_prediction)
+                hit = eval_hit(prediction_str, answer)
+
+            f1_score, precision_score, recall_score = eval_f1(full_prediction, answer)
+            prediction_str = ' '.join(full_prediction)
+            acc = eval_acc(prediction_str, answer)
+            mrr=eval_mrr(full_prediction,answer)
+            acc_list.append(acc)
+            hit_list.append(hit)
+            f1_list.append(f1_score)
+            precision_list.append(precision_score)
+            recall_list.append(recall_score)
+            mrr_list.append(mrr)
+            f2.write(json.dumps({
+                'id': id, 
+                'prediction': full_prediction, 
+                'ground_truth': answer, 
+                'acc': acc, 
+                'hit': hit, 
+                'f1': f1_score, 
+                'precision': precision_score, 
+                'recall': recall_score,
+                'MRR':mrr
+            }) + '\n')
+
     if len(f1_list) > 0:
-        result_str = "Accuracy: " + str(sum(acc_list) * 100 / len(acc_list)) + " Hit: " + str(sum(hit_list) * 100 / len(hit_list)) + " F1: " + str(sum(f1_list) * 100 / len(f1_list)) + " Precision: " + str(sum(precision_list) * 100 / len(precision_list)) + " Recall: " + str(sum(recall_list) * 100 / len(recall_list))
+        result_str = (f"Accuracy: {sum(acc_list)*100/len(acc_list)} "
+                      f"Hit: {sum(hit_list)*100/len(hit_list)} "
+                      f"F1: {sum(f1_list)*100/len(f1_list)} "
+                      f"Precision: {sum(precision_list)*100/len(precision_list)} "
+                      f"Recall: {sum(recall_list)*100/len(recall_list)}"
+                      f"MRR:{sum(mrr_list)*100/len(mrr_list):.2f}")
     else:
-        result_str = "Accuracy: " + str(sum(acc_list) * 100 / len(acc_list)) + " Hit: " + str(sum(hit_list) * 100 / len(hit_list))
+        result_str = f"Accuracy: {sum(acc_list)*100/len(acc_list)} Hit: {sum(hit_list)*100/len(hit_list)}"
+    
     logger.info(result_str)
-    result_name = "eval_result_top_{topk}.txt" if topk > 0 else 'eval_result.txt'
+    
+    result_name = f"eval_result_top_{topk}.txt" if topk > 0 else 'eval_result.txt'
     eval_result_path = predict_file.replace('predictions.jsonl', result_name)
     with open(eval_result_path, 'w') as f:
         f.write(result_str)

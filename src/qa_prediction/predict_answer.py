@@ -248,7 +248,7 @@ def main(args, LLM):
     fout.close()
     
     is_tuned = False if args.model_type == "un_tuned" else True
-    eval_result(output_file, is_tuned=is_tuned)
+    eval_result(output_file, is_tuned=is_tuned,topk=args.hit_k)
 
 
 if __name__ == "__main__":
@@ -295,7 +295,8 @@ if __name__ == "__main__":
     argparser.add_argument("-n", default=1, type=int, help="number of processes")
     argparser.add_argument("--filter_empty", action="store_true")
     argparser.add_argument("--debug", action="store_true")
-    
+    argparser.add_argument("--hit_k",type=int,default=int(os.environ.get("HIT_K") or 1),help="value of k for hit@k evaluation")
+   
     
 
     args, _ = argparser.parse_known_args()

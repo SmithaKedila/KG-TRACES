@@ -10,8 +10,11 @@
 #SBATCH --error=%x_%j.err
 
 echo "=== Activating environment ==="
-source ~/anaconda3/bin/activate kg_traces
-
+source ~/KG-TRACES/kg_traces/bin/activate
+export HF_HOME="/home/017886167/KG-TRACES/data"
+export HF_DATASETS_OFFLINE=1
+export TRANSFORMERS_OFFLINE=1
+export HIT_K=3
 echo "Running on host: $(hostname)"
 echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
 
@@ -34,6 +37,6 @@ export NCCL_P2P_DISABLE=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 echo "=== Running KG-TRACES prediction ==="
-cd /home/018228028/KG-TRACES
+cd /home/017886167/KG-TRACES
 
 bash scripts/predict.sh
