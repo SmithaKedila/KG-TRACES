@@ -356,8 +356,6 @@ if __name__ == "__main__":
     argparser.add_argument("--filter_empty", action="store_true")
     argparser.add_argument("--debug", action="store_true")
     argparser.add_argument("--hit_k",type=int,default=int(os.environ.get("HIT_K") or 1),help="value of k for hit@k evaluation")
-   
-    
 
     # Guardrail flags
     argparser.add_argument(

@@ -26,6 +26,7 @@ for DATA_SET in $DATASET_LIST; do
                                 --pred_path_type=${PRED_PATH_TYPE} \
                                 --faithfulness_gate \
                                 --abstain_if_unverified
+                                --abstain_if_unverified 
 
                 done
         done

@@ -375,3 +375,4 @@ if __name__ == "__main__":
     logger.info(args)
 
     gen_path = gen_prediction(args)
+

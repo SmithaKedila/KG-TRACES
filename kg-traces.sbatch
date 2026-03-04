@@ -13,11 +13,11 @@ echo "=== Activating environment ==="
 source $HOME/miniforge3/etc/profile.d/conda.sh
 conda config --set auto_activate_base false
 
-conda activate kg_traces
-export HF_HOME="/home/017886167/KG-TRACES/data"
+export HF_HOME="/home/018172310/KG-TRACES/data"
 export HF_DATASETS_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
 export HIT_K=3
+conda activate kg_traces 
 
 cd /home/018172310/KG-TRACES || exit 1
 
