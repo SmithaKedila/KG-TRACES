@@ -9,7 +9,7 @@ asttokens==3.0.0
 attrs==25.1.0
 backcall==0.2.0
 beautifulsoup4==4.13.4
-bitsandbytes==0.42.0
+# bitsandbytes==0.42.0
 bleach==6.2.0
 bypy==1.8.7
 certifi==2025.1.31
@@ -19,8 +19,7 @@ colorama==0.4.6
 cramjam==2.9.1
 datasets==3.3.2
 decorator==5.2.1
-deepspeed==0.16.4
-defusedxml==0.7.1
+#defusedxml==0.7.1
 device-smi==0.3.3
 dill==0.3.8
 distro==1.9.0
