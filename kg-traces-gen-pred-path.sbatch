@@ -10,7 +10,8 @@
 #SBATCH --error=%x_%j.err
 
 echo "=== Activating environment ==="
-source ~/anaconda3/bin/activate kg_traces
+source $HOME/miniforge3/etc/profile.d/conda.sh
+conda activate kg_traces_py312
 
 echo "Running on host: $(hostname)"
 echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
@@ -34,6 +35,6 @@ export NCCL_P2P_DISABLE=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 echo "=== Running KG-TRACES prediction ==="
-cd /home/018228028/KG-TRACES
+cd /home/018172310/KG-TRACES
 
 bash src/qa_prediction/predict_path.sh

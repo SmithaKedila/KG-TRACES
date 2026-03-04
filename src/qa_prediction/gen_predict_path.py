@@ -15,6 +15,9 @@ sys.path.append(os.path.dirname(os.path.realpath(__file__)) + "/..")
 import utils
 from tools.logger_factory import setup_logger
 
+# ✅ Added (faithfulness guardrail support)
+from qa_prediction.faithfulness import build_evidence_set, verify_triple_path
+
 logger = setup_logger("gen_predict_path")
 
 
@@ -28,10 +31,17 @@ INSTRUCTION_RELATION = """Please generate a valid reasoning relation path that c
 
 
 
+#INSTRUCTION_TRIPLE = """Please generate a valid reasoning triple path that can be helpful for answering the following question
+#- The reasoning triples path should follow the format: <PATH>subject<SEP>relation<SEP>object</PATH>.
+#- If multiple triples are needed, output them in a logical sequence.
+#- If no meaningful relation path can be generated, return <PATH>NONE</PATH>.
+#"""
 INSTRUCTION_TRIPLE = """Please generate a valid reasoning triple path that can be helpful for answering the following question
-- The reasoning triples path should follow the format: <PATH>subject<SEP>relation<SEP>object</PATH>.
-- If multiple triples are needed, output them in a logical sequence.
-- If no meaningful relation path can be generated, return <PATH>NONE</PATH>.
+- The reasoning triples path should follow the format:
+  <PATH>subject -> relation -> object</PATH>
+- If multiple triples are needed, output them in a logical sequence like:
+  <PATH>s1 -> r1 -> o1 -> r2 -> o2</PATH>
+- If no meaningful path can be generated, return <PATH>NONE</PATH>.
 """
 
 
@@ -277,6 +287,29 @@ def gen_prediction(args):
                 "raw_output": raw_outputs[i],
             }
 
+            # ✅ Added: Faithfulness verification for triple paths against sample["graph"]
+            # - Adds:
+            #     output_data["path_meta"] -> per-path verified + unsupported steps
+            #     output_data["verified_paths"] -> only verified paths
+            # - If --drop_unverified is enabled, prediction_paths becomes verified_paths
+            if args.verify_paths and args.path_type == "triple":
+                evidence = build_evidence_set(batch[i])  # uses batch[i]["graph"]
+                verified_paths = []
+                path_meta = []
+
+                for path in parsed_paths:
+                    # path is list of (subject, relation, object)
+                    ok, bad = verify_triple_path(path, evidence)
+                    path_meta.append({"verified": ok, "unsupported_steps": bad})
+                    if ok:
+                        verified_paths.append(path)
+
+                output_data["path_meta"] = path_meta
+                output_data["verified_paths"] = verified_paths
+
+                if args.drop_unverified:
+                    output_data["prediction_paths"] = verified_paths
+
             f.write(json.dumps(output_data) + "\n")
             f.flush()
     f.close()
@@ -324,6 +357,18 @@ if __name__ == "__main__":
     parser.add_argument("--max_new_tokens", type=int, default=128)
     parser.add_argument("--n_beam", type=int, default=3)
     parser.add_argument("--do_sample", action="store_true", help="do sampling")
+
+    # ✅ Added (faithfulness guardrail flags)
+    parser.add_argument(
+        "--verify_paths",
+        action="store_true",
+        help="Verify predicted paths against sample['graph'] before saving.",
+    )
+    parser.add_argument(
+        "--drop_unverified",
+        action="store_true",
+        help="If enabled, keep only verified paths in 'prediction_paths'.",
+    )
 
     args = parser.parse_args()
     
