@@ -14,15 +14,33 @@ class PromptBuilder(object):
     SAQ_PATH_INSTRUCTION = """Based on the reasoning paths, please answer the given question. Please generate both the reasoning process and answer. Please keep the answer as simple as possible and return all the possible answers as a list."""
 
     SAQ_PRED_PATH_INSTRUCTION = """Based on the reasoning paths, please answer the given question. The paths with <KG> are from the real world **Knowledge Graph** (more reliable) and the paths with <INFERRED> are your predictions, you should recognize useful reasoning paths from **Potential Useful Reasoning Paths**. Please generate both the reasoning process and answer. Please keep the answer as simple as possible and return all the possible answers as a list."""
-
-
+    VANILLA_LIST_INSTRUCTION = (
+        "Please answer the following questions. Please keep the answer as simple as possible "
+        "and return all the possible answer as a JSON list of strings.\n\n"
+        "**Question**:\n"
+    )
+    VANILLA_LIST_SUFFIX = (
+        "\n\nReturn ONLY a JSON list of strings, e.g. [\"answer1\", \"answer2\"]."
+    )
+    def build_vanilla_prompt(self, question: str) -> str:
+        """
+        Vanilla LLM prompt: question only, force JSON list output for easy parsing.
+        """
+        prompt = (
+            "Please answer the following questions. Please keep the answer as simple as possible "
+            "and return all the possible answer as a JSON list of strings.\n\n"
+            "**Question**:\n"
+            f"{question}\n\n"
+            "Return ONLY a JSON list of strings, e.g. [\"answer1\", \"answer2\"]."
+        )
+        return prompt
     COT = """ Let's think it step by step."""
     EXPLAIN = """ Please explain your answer."""
     QUESTION = """**Question**:\n{question}"""
     GRAPH_CONTEXT = """**Potential Useful Reasoning Paths**:\n{context}\n\n"""
     CHOICES = """\nChoices:\n{choices}"""
     EACH_LINE = """ Please return each answer in a new line."""
-    def __init__(self, add_path = False, use_true = False, use_weight=False, use_random = False, use_pred_path = False, pred_path_type = "relation", each_line = False, cot = False, explain = False, path_num=3, path_len=2, maximun_token = 4096, tokenize: Callable = lambda x: len(x)):
+    def __init__(self, add_path = False, use_true = False, use_weight=False, use_random = False, use_pred_path = False, pred_path_type = "relation", each_line = False, cot = False, explain = False, path_num=3, path_len=2, maximun_token = 4096, tokenize: Callable = lambda x: len(x), vanilla_llm = False):
         self.prompt_template = self.PROMPT_TEMPLATE
         self.add_path = add_path
         self.use_true = use_true
@@ -37,6 +55,7 @@ class PromptBuilder(object):
         self.each_line = each_line
         self.path_num = path_num
         self.path_len = path_len
+        self.vanilla_llm = vanilla_llm
         
     def apply_rules(self, graph, rules, source_entities):
         results = []
@@ -67,6 +86,34 @@ class PromptBuilder(object):
         if not question.endswith('?'):
             question += '?'
 
+        if self.vanilla_llm:
+            # Build "input" in the same style as KG-TRACES
+            input_text = self.QUESTION.format(question=question)
+
+            # If MCQ, include choices (optional; doesn't hurt SAQ)
+            if len(question_dict.get('choices', [])) > 0:
+                choices = '\n'.join(question_dict['choices'])
+                input_text += self.CHOICES.format(choices=choices)
+
+            instruction = self.VANILLA_LIST_INSTRUCTION
+
+            # keep existing toggles consistent
+            if self.cot:
+                instruction += self.COT
+            if self.explain:
+                instruction += self.EXPLAIN
+            if self.each_line:
+                instruction += self.EACH_LINE
+
+            # force the JSON constraint at the end of the prompt
+            input_text = self.prompt_template.format(
+                instruction=instruction,
+                input=input_text + self.VANILLA_LIST_SUFFIX
+            )
+
+            # Return the same 3-tuple shape that the rest of the code expects
+            # (input, lists_of_paths, extra)
+            return input_text, input_text, []
         if self.add_path:
             graph = utils.build_graph(question_dict['graph'])
             entities = question_dict['q_entity'] if 'q_entity' in question_dict else question_dict['question']
