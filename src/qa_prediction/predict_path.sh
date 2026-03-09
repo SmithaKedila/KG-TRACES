@@ -31,7 +31,9 @@ for PATH_TYPE in $PATH_TYPE_LIST; do
                 --path_type ${PATH_TYPE} \
                 --n_beam ${N_BEAM} \
                 --batch_size ${BATCH_SIZE} \
-                --output_path ${OUTPUT_PATH}
+                --output_path ${OUTPUT_PATH} \
+                --verify_paths \
+                --drop_unverified
         done
     done
 done

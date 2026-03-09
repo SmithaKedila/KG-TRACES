@@ -1,1 +1,24 @@
-/data
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# HF / caches
+.cache/
+huggingface/
+*.lock
+
+# Outputs / artifacts
+results/
+logs/
+models/
+kg_traces/
+
+# Slurm
+*.out
+*.err
+
+# OS / editor
+.DS_Store
+*.swp
