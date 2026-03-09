@@ -4,6 +4,8 @@ __pycache__/
 *.pyo
 *.pyd
 
+data/processed/
+
 # HF / caches
 .cache/
 huggingface/

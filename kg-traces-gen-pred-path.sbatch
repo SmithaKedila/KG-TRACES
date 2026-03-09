@@ -1,40 +1,30 @@
 #!/bin/bash
-#SBATCH --job-name=KG-traces-run
-#SBATCH --partition=nsfqs          # or gpuqm/gpuql
+#SBATCH --job-name=KG-traces-gen
+#SBATCH --partition=nsfqs
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=64G
-#SBATCH --time=48:00:00            # might need gpuqm/gpuql depending on limits
+#SBATCH --time=48:00:00
 #SBATCH --output=%x_%j.out
 #SBATCH --error=%x_%j.err
 
-echo "=== Activating environment ==="
-source $HOME/miniforge3/etc/profile.d/conda.sh
-conda activate kg_traces_py312
+echo "=== Initializing Conda ==="
 
-echo "Running on host: $(hostname)"
-echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
+source /app/rl9.x/anaconda3/2025.06/etc/profile.d/conda.sh
+conda activate /home/018178407/.conda/envs/webnlg
 
-echo "=== GPU CHECK ==="
-nvidia-smi || echo "nvidia-smi not found or no GPU visible"
+echo "Active Python:"
+which python
 
-python - << 'PY'
-import torch
-print("Torch CUDA available:", torch.cuda.is_available())
-print("Torch version:", torch.__version__)
-print("CUDA version:", torch.version.cuda)
-print("GPUs:", torch.cuda.device_count())
-if torch.cuda.is_available():
-    print("Current device:", torch.cuda.current_device())
-    print("Device name:", torch.cuda.get_device_name(0))
-PY
+python -c "import torch, datasets, transformers; print('ENV OK')"
 
-export NCCL_IB_DISABLE=1
-export NCCL_P2P_DISABLE=0
-export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
+cd /home/018178407/projects/KG-TRACES || exit 1
+export PYTHONPATH="$PWD:$PYTHONPATH"
 
-echo "=== Running KG-TRACES prediction ==="
-cd /home/018172310/KG-TRACES
+export TRANSFORMERS_OFFLINE=1
+export HF_DATASETS_OFFLINE=1
+
+echo "=== Running KG-TRACES Path Generation ==="
 
 bash src/qa_prediction/predict_path.sh
