@@ -1,6 +1,7 @@
 import sys
 import os
 import torch
+import time
 from datasets import load_dataset
 from datasets import Features, Value
 import json
@@ -8,8 +9,8 @@ import argparse
 from tqdm import tqdm
 
 current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(current_dir)
-p_project_root = os.path.dirname(project_root)
+project_root = os.path.dirname(current_dir) 
+p_project_root = os.path.dirname(project_root) 
 sys.path.extend([project_root, p_project_root])
 
 from llms import get_registed_model
@@ -37,15 +38,7 @@ def get_output_file(path, force=False):
         return fout, processed_results
 
 
-def merge_pred_path_result(
-    qa_dataset,
-    relation_path_dataset,
-    triple_path_dataset,
-    n_proc=1,
-    filter_empty=False,
-    faithfulness_gate=False,
-    abstain_if_unverified=True,
-):
+def merge_pred_path_result(qa_dataset, relation_path_dataset, triple_path_dataset, n_proc=1, filter_empty=False, faithfulness_gate=False, abstain_if_unverified=True):
     """
     Merge predicted paths into QA dataset samples.
 
@@ -58,19 +51,15 @@ def merge_pred_path_result(
     """
     question_to_relation_path = dict()
     question_to_triple_path = dict()
-
-    # Relation paths are optional
     if relation_path_dataset is not None:
         for data in relation_path_dataset:
             qid = data["id"]
-            predicted_paths = data.get("prediction_paths", [])
-            ground_paths = data.get("ground_paths", [])
+            predicted_paths = data["prediction_paths"]
+            ground_paths = data["ground_paths"]
             question_to_relation_path[qid] = {
                 "predicted_paths": predicted_paths,
                 "ground_paths": ground_paths,
             }
-
-    # Triple paths (support verified_paths)
     for data in triple_path_dataset:
         qid = data["id"]
 
@@ -97,12 +86,13 @@ def merge_pred_path_result(
 
     def find_rule(sample):
         qid = sample["id"]
-
         sample["predicted_relation_paths"] = []
         sample["predicted_triple_paths"] = []
         sample["ground_paths"] = []
+       # sample["predicted_relation_paths"] = question_to_relation_path[qid]["predicted_paths"]
+        #sample["predicted_triple_paths"] = question_to_triple_path[qid]["predicted_paths"]
+        #sample["ground_paths"] = question_to_relation_path[qid]["ground_paths"]
         sample["faithfulness_note"] = ""
-
         if qid in question_to_relation_path:
             sample["predicted_relation_paths"] = question_to_relation_path[qid]["predicted_paths"]
             sample["ground_paths"] = question_to_relation_path[qid]["ground_paths"]
@@ -120,16 +110,17 @@ def merge_pred_path_result(
 
     logger.info("Merging predicted paths...")
     qa_dataset = qa_dataset.map(find_rule, num_proc=n_proc)
-
     if filter_empty:
-        qa_dataset = qa_dataset.filter(lambda x: len(x["ground_paths"]) > 0, num_proc=n_proc)
-
+        qa_dataset = qa_dataset.filter(
+            lambda x: len(x["ground_paths"]) > 0, num_proc=n_proc
+        )
     return qa_dataset
 
-
+import time
 def prediction(batch_data, processed_list, input_builder, model):
     questions, answers, ids = [], [], []
     filter_batch_data = []
+
     for data in batch_data:
         if data["id"] in processed_list:
             continue
@@ -141,11 +132,18 @@ def prediction(batch_data, processed_list, input_builder, model):
     if len(questions) == 0:
         return None
 
-    inputs = [input_builder.process_input(data)[0] for data in filter_batch_data]
-    lists_of_paths = [input_builder.process_input(data)[1] for data in filter_batch_data]
-    num_of_paths = [len(lists_of_paths[i]) if lists_of_paths[i] else 0 for i in range(len(lists_of_paths))]
+    t0 = time.time()
+
+    processed_inputs = [input_builder.process_input(data) for data in filter_batch_data]
+    inputs = [x[0] for x in processed_inputs]
+    lists_of_paths = [x[1] for x in processed_inputs]
+    num_of_paths = [len(x) if x else 0 for x in lists_of_paths]
 
     predictions = model.generate_sentence_batch(inputs)
+
+    t1 = time.time()
+    batch_latency = t1 - t0
+    per_example_latency = batch_latency / max(len(inputs), 1)
 
     results = []
     for i, data in enumerate(filter_batch_data):
@@ -160,38 +158,50 @@ def prediction(batch_data, processed_list, input_builder, model):
             "lists_of_paths": lists_of_paths[i],
             "num_of_paths": num_of_paths[i],
             "faithfulness_note": data.get("faithfulness_note", ""),
+            "latency_sec_total_batch": batch_latency,
+            "latency_sec_total_per_example": per_example_latency,
         }
         results.append(result)
 
     return results
 
-
 def load_webqsp_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/webqsp_offline/*.jsonl), no internet needed.
+    """
     if split not in ["train", "validation", "test"]:
         raise ValueError(f"Unsupported split: {split}")
 
     base_dir = os.path.join("data", "processed/webqsp")
     file_map = {
-        "train": "train-relation_path.jsonl",
+        "train":      "train-relation_path.jsonl",
         "validation": "validation.jsonl",
-        "test": "test.jsonl",
+        "test":       "test.jsonl",
     }
     path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
     ds = load_dataset("json", data_files=path, split="train")
     return ds
 
-
 def load_cwq_split(split: str):
+    """
+    Load WebQSP SFT data from locally downloaded JSONL files
+    (data/processed/cwq/*.jsonl), no internet needed.
+    """
     if split not in ["train", "validation", "test"]:
         raise ValueError(f"Unsupported split: {split}")
 
     base_dir = os.path.join("data", "processed/cwq")
     file_map = {
-        "train": "train-relation_path.jsonl",
+        "train":      "train-relation_path.jsonl",
         "validation": "validation.jsonl",
-        "test": "test.jsonl",
+        "test":       "test.jsonl",
     }
     path = os.path.join(base_dir, file_map[split])
+
+    # This is a *local* file path now
     ds = load_dataset("json", data_files=path, split="train")
     return ds
 
@@ -201,6 +211,7 @@ def main(args, LLM):
     path_postfix = "no_path"
 
     # Load dataset
+    #dataset = load_dataset(input_file, split=args.split)
     if args.dataset == "webqsp":
         dataset = load_webqsp_split(args.split)
     elif args.dataset == "cwq":
@@ -219,22 +230,9 @@ def main(args, LLM):
         elif args.use_pred_path:
             logger.info(f"\n[num_beam]: {args.n_beam}\n")
             path_postfix = f"pred_{args.pred_path_type}_path_beam_{args.n_beam}"
-
-            relation_path_dataset = None
-            if args.pred_path_type == "relation":
-                relation_path_dataset = io_file.read(args.pred_relation_path_path)
-
+            relation_path_dataset = io_file.read(args.pred_relation_path_path)
             triple_path_dataset = io_file.read(args.pred_triple_path_path)
-
-            dataset = merge_pred_path_result(
-                dataset,
-                relation_path_dataset,
-                triple_path_dataset,
-                n_proc=args.n,
-                filter_empty=args.filter_empty,
-                faithfulness_gate=args.faithfulness_gate,
-                abstain_if_unverified=args.abstain_if_unverified,
-            )
+            dataset = merge_pred_path_result(dataset, relation_path_dataset, triple_path_dataset, faithfulness_gate=args.faithfulness_gate, abstain_if_unverified=args.abstain_if_unverified,)
 
     if args.cot:
         path_postfix += "_cot"
@@ -244,16 +242,16 @@ def main(args, LLM):
         path_postfix += "_filter_empty"
     if args.each_line:
         path_postfix += "_each_line"
-
+        
     logger.info("Load dataset finished")
     output_dir = os.path.join(
         args.predict_path, args.dataset, args.model_type, args.model_name, args.split, path_postfix
     )
     logger.info(f"Save results to: {output_dir}")
-
+    
     if not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-
+    
     # Predict
     if LLM is not None:
         model = LLM(args)
@@ -267,6 +265,7 @@ def main(args, LLM):
             explain=args.explain,
             use_random=args.use_random,
             each_line=args.each_line,
+            include_reasoning=args.include_reasoning,
             maximun_token=model.maximun_token,
             tokenize=model.token_len,
         )
@@ -275,6 +274,7 @@ def main(args, LLM):
         model.prepare_for_inference()
     else:
         model = None
+        # Directly return last entity as answer
         input_builder = PromptBuilder(args.add_path, use_true=args.use_true)
 
     # Save args file
@@ -290,47 +290,40 @@ def main(args, LLM):
     for data in tqdm(dataloader, desc="Evaluating..."):
         res = prediction(data, processed_list, input_builder, model)
         if res is not None:
-            for r in res:
+            for r in res:  # Iterate over the list of dictionaries
                 fout.write(json.dumps(r) + "\n")
                 fout.flush()
     fout.close()
-
+    
     is_tuned = False if args.model_type == "un_tuned" else True
-    eval_result(output_file, is_tuned=is_tuned,topk=args.hit_k)
+    eval_result(output_file, is_tuned=is_tuned)
 
 
 if __name__ == "__main__":
+
     argparser = argparse.ArgumentParser()
-    argparser.add_argument("--data_path", type=str, default="data")
-    argparser.add_argument("--dataset", "-d", type=str, default="webqsp")
     argparser.add_argument(
-        "--model_type",
-        type=str,
-        default="webqsp_cwq_tuned",
-        help="webqsp_cwq_tuned or webqsp_tuned or un_tuned",
+        "--data_path", type=str, default="data"
     )
+    argparser.add_argument("--dataset", "-d", type=str, default="webqsp")
+    argparser.add_argument("--model_type", type=str, default="webqsp_cwq_tuned", help="webqsp_cwq_tuned or webqsp_tuned or un_tuned")
     argparser.add_argument("--split", type=str, default="test")
     argparser.add_argument("--predict_path", type=str, default="results/KGQA")
 
-    argparser.add_argument("--model_name", type=str, default="KG-TRACES")
+
     argparser.add_argument(
-        "--model_path",
+        "--model_name",
         type=str,
+        help="model_name for save results",
+        default="KG-TRACES",
+    )
+    argparser.add_argument(
+        "--model_path", type=str,
         help="HF repo id or local path for the model",
         default="models/KG-TRACES",
     )
-
-    argparser.add_argument(
-        "--pred_relation_path_path",
-        type=str,
-        default="results/gen_predict_path/webqsp/test/KG-TRACES/type_relation/predictions_3_True.jsonl",
-    )
-    argparser.add_argument(
-        "--pred_triple_path_path",
-        type=str,
-        default="results/gen_predict_path/webqsp/test/KG-TRACES/type_triple/predictions_3_True.jsonl",
-    )
-
+    argparser.add_argument("--pred_relation_path_path", type=str, default="results/gen_predict_path/webqsp/test/KG-TRACES/type_relation/predictions_3_True.jsonl")
+    argparser.add_argument("--pred_triple_path_path", type=str, default="results/gen_predict_path/webqsp/test/KG-TRACES/type_triple/predictions_3_True.jsonl")
     argparser.add_argument("--add_path", action="store_true")
     argparser.add_argument("--use_true", action="store_true")
     argparser.add_argument("--cot", action="store_true")
@@ -343,21 +336,24 @@ if __name__ == "__main__":
     argparser.add_argument("--each_line", action="store_true")
     argparser.add_argument("--path_num", type=int, default=3, help="random path num")
     argparser.add_argument("--path_len", type=int, default=3, help="random path len")
+    argparser.add_argument("--trust_remote_code", action="store_true")
+    argparser.add_argument(
+    "--output_path",
+    type=str,
+    default=None)
 
     argparser.add_argument("--batch_size", type=int, default=2, help="batch size to evaluate")
-    argparser.add_argument(
-        "--skip_special_tokens",
-        type=bool,
-        default=True,
-        help="Whether to skip special tokens when LLM decoding",
-    )
+    argparser.add_argument("--skip_special_tokens", type=bool, default=True, help="Whether to skip special tokens when LLM decoding")
     argparser.add_argument("--force", "-f", action="store_true", help="force to overwrite the results")
     argparser.add_argument("-n", default=1, type=int, help="number of processes")
     argparser.add_argument("--filter_empty", action="store_true")
     argparser.add_argument("--debug", action="store_true")
-    argparser.add_argument("--hit_k",type=int,default=int(os.environ.get("HIT_K") or 1),help="value of k for hit@k evaluation")
+    argparser.add_argument(
+        "--include_reasoning",
+        action="store_true",
+        help="If set, ask the model to generate reasoning process along with the answer.",
+    )
 
-    # Guardrail flags
     argparser.add_argument(
         "--faithfulness_gate",
         action="store_true",
@@ -368,16 +364,16 @@ if __name__ == "__main__":
         action="store_true",
         help="If no verified route exists, do not include any path for that sample.",
     )
-
     args, _ = argparser.parse_known_args()
+
     if args.model_name != "no-llm":
         LLM = get_registed_model(args.model_name)
         LLM.add_args(argparser)
     else:
         LLM = None
-
     args = argparser.parse_args()
     args.generation_mode = "greedy"
 
     logger.info(args)
+
     main(args, LLM)

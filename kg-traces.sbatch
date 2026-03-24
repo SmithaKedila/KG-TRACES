@@ -10,18 +10,7 @@
 #SBATCH --error=%x_%j.err
 
 echo "=== Activating environment ==="
-source $HOME/miniforge3/etc/profile.d/conda.sh
-conda config --set auto_activate_base false
-
-export HF_HOME="/home/018172310/KG-TRACES/data"
-export HF_DATASETS_OFFLINE=1
-export TRANSFORMERS_OFFLINE=1
-export HIT_K=3
-conda activate kg_traces 
-
-cd /home/018172310/KG-TRACES || exit 1
-
-export PYTHONPATH="$PWD:$PYTHONPATH"
+source ~/anaconda3/bin/activate kg_traces
 
 echo "Running on host: $(hostname)"
 echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
@@ -45,6 +34,6 @@ export NCCL_P2P_DISABLE=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 echo "=== Running KG-TRACES prediction ==="
-cd /home/018172310/KG-TRACES
+cd /home/018228028/KG-TRACES
 
 bash scripts/predict.sh

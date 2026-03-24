@@ -1,17 +1,16 @@
 #!/bin/bash
-#SBATCH --job-name=KG-traces-run
-#SBATCH --partition=nsfqs          # or gpuqm/gpuql
+#SBATCH --job-name=pred-path
+#SBATCH --partition=nsfql          # or gpuqm/gpuql
 #SBATCH --nodes=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=8
-#SBATCH --mem=64G
+#SBATCH --mem=200G
 #SBATCH --time=48:00:00            # might need gpuqm/gpuql depending on limits
 #SBATCH --output=%x_%j.out
 #SBATCH --error=%x_%j.err
 
 echo "=== Activating environment ==="
-source $HOME/miniforge3/etc/profile.d/conda.sh
-conda activate kg_traces_py312
+source ~/anaconda3/bin/activate kg_traces
 
 echo "Running on host: $(hostname)"
 echo "CUDA devices visible: $CUDA_VISIBLE_DEVICES"
@@ -35,6 +34,6 @@ export NCCL_P2P_DISABLE=0
 export OMP_NUM_THREADS=$SLURM_CPUS_PER_TASK
 
 echo "=== Running KG-TRACES prediction ==="
-cd /home/018172310/KG-TRACES
+cd /home/018228028/KG-TRACES
 
 bash src/qa_prediction/predict_path.sh

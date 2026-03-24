@@ -1,13 +1,13 @@
 export PYTHONPATH=$PWD:$PYTHONPATH
 SPLIT="test"
 DATASET_LIST="webqsp"  # "webqsp cwq""
-PATH_TYPE_LIST="triple" 
+PATH_TYPE_LIST="triple" #"triple" #"relation" 
 MODEL_NAME=KG-TRACES
 MODEL_PATH=models/KG-TRACES
 PROMPT_PATH=prompts/qwen2.5.txt
 OUTPUT_PATH=results/gen_predict_path
-
-BATCH_SIZE=128
+EXIT_THRESH=0.8
+BATCH_SIZE=8
 
 export CUDA_VISIBLE_DEVICES=0,1
 echo "CUDA_VISIBLE_DEVICES=$CUDA_VISIBLE_DEVICES"
@@ -32,8 +32,9 @@ for PATH_TYPE in $PATH_TYPE_LIST; do
                 --n_beam ${N_BEAM} \
                 --batch_size ${BATCH_SIZE} \
                 --output_path ${OUTPUT_PATH} \
-                --verify_paths \
-                --drop_unverified
+		--verify_paths \
+                --drop_unverified \
+                --early_exit_threshold ${EXIT_THRESH}
         done
     done
 done
